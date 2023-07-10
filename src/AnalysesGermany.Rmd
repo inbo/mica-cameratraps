@@ -1,0 +1,74 @@
+---
+title: "AnalysesGermany"
+author: "Emma Cartuyvels"
+date: "9-11-2021"
+output: html_document
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+
+library(readr)
+library(lubridate)
+library(plotly)
+library(crosstalk)
+library(DT)
+library(tidyverse)
+```
+
+```{r, include=FALSE}
+library(INBOtheme)
+theme_set(theme_inbo(base_size = 18))
+```
+
+```{r, include=FALSE}
+observations <- 
+  read_csv("../input/mica-muskrat-and-coypu-20211103131449/observations.csv", 
+           col_types = cols(comments = col_character()))
+deployments <- 
+  read_csv("../input/mica-muskrat-and-coypu-20211103131449/deployments.csv") %>% 
+  mutate(area = substring(locationName,1,4))
+
+dep_select <- deployments %>% 
+  select(deploymentID, locationName, area)
+
+obs_select <- observations %>% 
+  select(deploymentID, sequenceID, timestamp, observationType,
+         scientificName, count, classifiedBy) %>%
+  filter(!observationType %in% c("unclassified","empty")) %>%
+  mutate(year = year(timestamp),
+         month = month(timestamp)) %>% 
+  left_join(dep_select, by = "deploymentID") %>% 
+  filter(area != "Mica") %>% 
+  select(-deploymentID) %>% 
+  mutate(scientificName = ifelse(is.na(scientificName), 
+                                 observationType, 
+                                 scientificName)) %>% 
+  select(-observationType) %>% 
+  filter(area == "D_MI") %>%
+  mutate(month = ifelse(month < 10, paste0(0,month), month)) %>% 
+  mutate(period = paste0(year, "-", month)) %>%
+  select(scientificName, count, area, period)
+```
+
+
+```{r}
+obs_select %>% group_by(scientificName) %>% 
+  summarise(sum(count)) %>% 
+  datatable()
+```
+
+```{r, fig.width=10}
+obs_select %>% 
+  filter(scientificName == "Ondatra zibethicus") %>% 
+  ggplot(aes(x = period)) +
+  geom_bar()
+```
+
+```{r, fig.width=10}
+obs_select %>% 
+  filter(scientificName == "Myocastor coypus") %>% 
+  ggplot(aes(x = period)) +
+  geom_bar()
+```
+

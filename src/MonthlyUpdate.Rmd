@@ -1,0 +1,124 @@
+---
+title: "Overview camera \ trap images"
+subtitle: "Last updated `r Sys.Date()`"
+output: html_document
+---
+
+```{r, echo=FALSE}
+htmltools::img(src = knitr::image_uri("../input/Life MICA logo.jpg"), 
+               alt = 'logo', 
+               style = 'position:absolute; top:0; right:0; padding:15px; width:25vw')
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE)
+
+library(readr)
+library(lubridate)
+library(zoo)
+library(plotly)
+library(crosstalk)
+library(DT)
+library(tidyverse)
+
+```
+
+\
+\
+\
+\
+
+Be careful when interpreting this data, some of it was machine annotated and not all sequences have been fully annotated.
+
+\
+\
+
+```{r, include=FALSE}
+observations <- 
+  read_csv("../input/mica-muskrat-and-coypu-20220826064114/observations.csv", 
+                         col_types = cols(comments = col_character()))
+deployments <- 
+  read_csv("../input/mica-muskrat-and-coypu-20220826064114/deployments.csv") %>% 
+  mutate(area = substring(locationName,1,4))
+           
+multimedia <- 
+  read_csv("../input/mica-muskrat-and-coypu-20220826064114/media.csv", 
+                         col_types = cols(comments = col_character()))
+```
+
+```{r}
+birds <- c("Anas platyrhynchos", "Anas strepera", "Anser", "Ardea",
+           "Fulica atra", "Gallinula chloropus")
+rodents <- c("Rattus norvegicus", "Ondatra zibethicus",
+             "Myocastor coypus", "Castor fiber", "Rodentia")
+
+dep_select <- deployments %>% 
+  select(deploymentID, locationName, area)
+
+obs_select <- observations %>% 
+  select(deploymentID, 
+         sequenceID, 
+         timestamp, 
+         observationType,
+         scientificName, 
+         count, 
+         classifiedBy) %>%
+  filter(!observationType %in% c("unclassified", 
+                                 "blank", 
+                                 "human")) %>%
+  filter(!scientificName %in% birds) %>%
+  mutate(scientificName = ifelse(is.na(scientificName), 
+                                 observationType, 
+                                 scientificName)) %>%
+  mutate(grp = ifelse(!scientificName %in% c(rodents, "unknown"),
+                      "Other",
+                      scientificName)) %>% 
+  mutate(year = year(timestamp),
+         month = month(timestamp)) %>% 
+  mutate(num = 12 * as.numeric(as.yearmon(paste0(year, 
+                                                 "-", 
+                                                 month)) - 2019) - 7) %>% 
+  mutate(classifiedBy = ifelse(classifiedBy == "Western Europe species model Version 1",
+                               "AI",
+                               "Human")) %>% 
+  left_join(dep_select, by = "deploymentID") %>% 
+  filter(area != "Mica") %>%
+  mutate(link = paste0("<a href='","https://www.agouti.eu/#/project/86cabc14-d475-4439-98a7-e7b590bed60e/annotate/sequence/",sequenceID,"' target='_blank'>","https://www.agouti.eu/#/project/86cabc14-d475-4439-98a7-e7b590bed60e/annotate/sequence/",sequenceID,"</a>")) %>% 
+  select(scientificName, count, area, link, num, grp, classifiedBy)
+```
+
+```{r}
+shared_obs <- SharedData$new(obs_select)
+
+bscols(widths = c(4,8,12),
+  list(
+    filter_checkbox("area", "Area", shared_obs, ~area),
+    filter_slider("num", "Project month", shared_obs, ~num, width = "100%"),
+    filter_select("grp", "Species", shared_obs, ~grp),
+    filter_checkbox("classifiedBy", "Classified by", shared_obs, ~classifiedBy)
+  ),
+  plot_ly(shared_obs, 
+          x = ~area, 
+          y = ~count,
+          color = ~grp, 
+          type = "bar"),
+  datatable(shared_obs, escape = FALSE)
+)
+```
+
+
+
+```{r, include=FALSE}
+### Who annotated the most in the past month?
+
+observations %>%
+  filter(between(date(classificationTimestamp), 
+                 floor_date(today(), unit = "month") %m-% months(3), 
+                 floor_date(today(), unit = "month") %m-% days(1))) %>% 
+  group_by(classifiedBy) %>% 
+  summarise(n()) %>% 
+  datatable(options = list(order = list(list(2, 'desc'))))
+```
+
+
+
