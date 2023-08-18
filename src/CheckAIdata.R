@@ -73,10 +73,54 @@ library(googlesheets4)
 # 150 other animals
 # 150 blanks
 
-new-observations <- 
-  read_csv("./input/mica-management-of-invasive-coypu-and-muskrat-in-europe-20230601061026/observations.csv", 
+new_observations <- 
+  read_csv("./input/mica-management-of-invasive-coypu-and-muskrat-in-europe-20230710120748/observations.csv", 
            col_types = cols(comments = col_character()))
 
-preview <- observations %>% 
-  filter(classifiedBy == "Western Europe species model Version 4")  %>% 
+preview <- new_observations %>% 
+  filter(classifiedBy %in% c("Western Europe species model Version 4a",
+                             "Western Europe species model Version 4a (test)"))  %>% 
   freq_table(scientificName)
+
+selection1 <- new_observations %>% 
+  select(sequenceID, classifiedBy, scientificName, count) %>% 
+  filter(classifiedBy %in% c("Western Europe species model Version 4a",
+                             "Western Europe species model Version 4a (test)"),
+         scientificName == "Rodentia") %>%
+  mutate(link = paste0("https://www.agouti.eu/#/project/86cabc14-d475-4439-98a7-e7b590bed60e/annotate/sequence/", sequenceID))
+
+birds <- c("Anas platyrhynchos", "Anas strepera", "Anser", "Ardea",
+           "Fulica atra", "Gallinula chloropus", "Anas")
+
+selection2 <- new_observations %>% 
+  select(sequenceID, classifiedBy, scientificName, count) %>% 
+  filter(classifiedBy %in% c("Western Europe species model Version 4a",
+                             "Western Europe species model Version 4a (test)"),
+         scientificName %in% birds) %>%
+  slice_sample(n = 150) %>%
+  mutate(link = paste0("https://www.agouti.eu/#/project/86cabc14-d475-4439-98a7-e7b590bed60e/annotate/sequence/", sequenceID))
+
+selection3 <- new_observations %>% 
+  select(sequenceID, classifiedBy, scientificName, count) %>% 
+  filter(classifiedBy %in% c("Western Europe species model Version 4a",
+                             "Western Europe species model Version 4a (test)"),
+         !(scientificName %in% c(birds, "Rodentia")),
+         !(is.na(scientificName))) %>%
+  mutate(link = paste0("https://www.agouti.eu/#/project/86cabc14-d475-4439-98a7-e7b590bed60e/annotate/sequence/", sequenceID))
+
+selection4 <- new_observations %>% 
+  select(sequenceID, classifiedBy, scientificName, count) %>% 
+  filter(classifiedBy %in% c("Western Europe species model Version 4a",
+                             "Western Europe species model Version 4a (test)"),
+         is.na(scientificName)) %>%
+  slice_sample(n = 150) %>%
+  mutate(link = paste0("https://www.agouti.eu/#/project/86cabc14-d475-4439-98a7-e7b590bed60e/annotate/sequence/", sequenceID))
+
+selection <- selection1 %>% 
+  bind_rows(selection2) %>% 
+  bind_rows(selection3) %>%
+  bind_rows(selection4)
+
+library(googlesheets4)
+(ss <- gs4_create("New sample AI Agouti", sheets = selection))
+4
